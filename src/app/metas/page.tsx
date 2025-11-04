@@ -1,26 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "~/components/Card";
 import Button from "~/components/Button";
 import Input from "~/components/Input";
-
-interface MetaGasto {
-  id: string;
-  categoria: string;
-  valorLimite: number;
-  valorGasto: number;
-  mes: string;
-}
-
-interface MetaOrcamento {
-  id: string;
-  nome: string;
-  valorAlvo: number;
-  valorAtual: number;
-  dataInicio: string;
-  dataFim: string;
-}
+import { GoalBudget, GoalSpent } from "../interfaces/goals";
+import { goalService } from "../services/goalService";
 
 export default function Metas() {
   const [abaSelecionada, setAbaSelecionada] = useState<"gastos" | "orcamento">(
@@ -33,85 +18,48 @@ export default function Metas() {
     tipo: "gasto" | "orcamento";
     id: string;
   } | null>(null);
-
-  const [metasGastos, setMetasGastos] = useState<MetaGasto[]>([
-    {
-      id: "1",
-      categoria: "Alimentação",
-      valorLimite: 800,
-      valorGasto: 528.5,
-      mes: "2025-11",
-    },
-    {
-      id: "2",
-      categoria: "Transporte",
-      valorLimite: 400,
-      valorGasto: 185.0,
-      mes: "2025-11",
-    },
-    {
-      id: "3",
-      categoria: "Entretenimento",
-      valorLimite: 300,
-      valorGasto: 255.9,
-      mes: "2025-11",
-    },
-    {
-      id: "4",
-      categoria: "Saúde",
-      valorLimite: 500,
-      valorGasto: 150.0,
-      mes: "2025-11",
-    },
-  ]);
-
-  const [metasOrcamento, setMetasOrcamento] = useState<MetaOrcamento[]>([
-    {
-      id: "1",
-      nome: "Fundo de Emergência",
-      valorAlvo: 10000,
-      valorAtual: 4500,
-      dataInicio: "2025-01-01",
-      dataFim: "2025-12-31",
-    },
-    {
-      id: "2",
-      nome: "Viagem 2026",
-      valorAlvo: 5000,
-      valorAtual: 1200,
-      dataInicio: "2025-01-01",
-      dataFim: "2026-06-30",
-    },
-    {
-      id: "3",
-      nome: "Novo Computador",
-      valorAlvo: 3500,
-      valorAtual: 2800,
-      dataInicio: "2025-09-01",
-      dataFim: "2025-12-31",
-    },
-  ]);
-
-  const [gastoEditando, setGastoEditando] = useState<MetaGasto | null>(null);
-  const [orcamentoEditando, setOrcamentoEditando] =
-    useState<MetaOrcamento | null>(null);
+  const [gastoEditando, setGastoEditando] = useState<GoalSpent | null>(null);
+  const [orcamentoEditando, setOrcamentoEditando] = useState<GoalBudget | null>(
+    null
+  );
+  const [metasGastos, setMetasGastos] = useState<GoalSpent[]>([]);
+  const [metasOrcamento, setMetasOrcamento] = useState<GoalBudget[]>([]);
 
   const [formGasto, setFormGasto] = useState({
-    categoria: "",
-    valorLimite: "",
-    valorGasto: "",
+    category: "",
+    limitValue: "",
+    spentValue: "",
     mes: new Date().toISOString().slice(0, 7),
   });
 
   const [formOrcamento, setFormOrcamento] = useState({
     nome: "",
-    valorAlvo: "",
-    valorAtual: "",
-    dataInicio: new Date().toISOString().split("T")[0],
-    dataFim: "",
+    targetValue: "",
+    currentValue: "",
+    startDate: new Date().toISOString().split("T")[0],
+    endDate: "",
   });
 
-  const categorias = [
+  useEffect(() => {
+    async function fetchGoals() {
+      try {
+        const data = await goalService.getGoalSpent();
+        setMetasGastos(data);
+      } catch (err) {
+        console.error(err);
+      }
+      try {
+        const data = await goalService.getGoalBudget();
+        setMetasOrcamento(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    fetchGoals();
+  }, []);
+
+  const categorys = [
     "Alimentação",
     "Transporte",
     "Moradia",
@@ -124,21 +72,21 @@ export default function Metas() {
   ];
 
   // Funções Meta de Gasto
-  const abrirModalGasto = (meta?: MetaGasto) => {
+  const abrirModalGasto = (meta?: GoalSpent) => {
     if (meta) {
       setGastoEditando(meta);
       setFormGasto({
-        categoria: meta.categoria,
-        valorLimite: meta.valorLimite.toString(),
-        valorGasto: meta.valorGasto.toString(),
-        mes: meta.mes,
+        category: meta.category,
+        limitValue: meta.limitValue.toString(),
+        spentValue: meta.spentValue.toString(),
+        mes: meta.date as string,
       });
     } else {
       setGastoEditando(null);
       setFormGasto({
-        categoria: "",
-        valorLimite: "",
-        valorGasto: "0",
+        category: "",
+        limitValue: "",
+        spentValue: "0",
         mes: new Date().toISOString().slice(0, 7),
       });
     }
@@ -154,21 +102,21 @@ export default function Metas() {
           m.id === gastoEditando.id
             ? {
                 ...m,
-                categoria: formGasto.categoria,
-                valorLimite: parseFloat(formGasto.valorLimite),
-                valorGasto: parseFloat(formGasto.valorGasto),
+                category: formGasto.category,
+                limitValue: parseFloat(formGasto.limitValue),
+                spentValue: parseFloat(formGasto.spentValue),
                 mes: formGasto.mes,
               }
             : m
         )
       );
     } else {
-      const novaMeta: MetaGasto = {
+      const novaMeta: GoalSpent = {
         id: Date.now().toString(),
-        categoria: formGasto.categoria,
-        valorLimite: parseFloat(formGasto.valorLimite),
-        valorGasto: parseFloat(formGasto.valorGasto),
-        mes: formGasto.mes,
+        category: formGasto.category,
+        limitValue: parseFloat(formGasto.limitValue),
+        spentValue: parseFloat(formGasto.spentValue),
+        date: formGasto.mes,
       };
       setMetasGastos([...metasGastos, novaMeta]);
     }
@@ -177,24 +125,24 @@ export default function Metas() {
   };
 
   // Funções Meta de Orçamento
-  const abrirModalOrcamento = (meta?: MetaOrcamento) => {
+  const abrirModalOrcamento = (meta?: GoalBudget) => {
     if (meta) {
       setOrcamentoEditando(meta);
       setFormOrcamento({
-        nome: meta.nome,
-        valorAlvo: meta.valorAlvo.toString(),
-        valorAtual: meta.valorAtual.toString(),
-        dataInicio: meta.dataInicio,
-        dataFim: meta.dataFim,
+        nome: meta.name,
+        targetValue: meta.targetValue.toString(),
+        currentValue: meta.currentValue.toString(),
+        startDate: meta.startDate as string,
+        endDate: meta.endDate as string,
       });
     } else {
       setOrcamentoEditando(null);
       setFormOrcamento({
         nome: "",
-        valorAlvo: "",
-        valorAtual: "0",
-        dataInicio: new Date().toISOString().split("T")[0],
-        dataFim: "",
+        targetValue: "",
+        currentValue: "0",
+        startDate: new Date().toISOString().split("T")[0],
+        endDate: "",
       });
     }
     setModalOrcamentoAberto(true);
@@ -210,22 +158,22 @@ export default function Metas() {
             ? {
                 ...m,
                 nome: formOrcamento.nome,
-                valorAlvo: parseFloat(formOrcamento.valorAlvo),
-                valorAtual: parseFloat(formOrcamento.valorAtual),
-                dataInicio: formOrcamento.dataInicio,
-                dataFim: formOrcamento.dataFim,
+                targetValue: parseFloat(formOrcamento.targetValue),
+                currentValue: parseFloat(formOrcamento.currentValue),
+                startDate: formOrcamento.startDate,
+                endDate: formOrcamento.endDate,
               }
             : m
         )
       );
     } else {
-      const novaMeta: MetaOrcamento = {
+      const novaMeta: GoalBudget = {
         id: Date.now().toString(),
-        nome: formOrcamento.nome,
-        valorAlvo: parseFloat(formOrcamento.valorAlvo),
-        valorAtual: parseFloat(formOrcamento.valorAtual),
-        dataInicio: formOrcamento.dataInicio,
-        dataFim: formOrcamento.dataFim,
+        name: formOrcamento.nome,
+        targetValue: parseFloat(formOrcamento.targetValue),
+        currentValue: parseFloat(formOrcamento.currentValue),
+        startDate: formOrcamento.startDate,
+        endDate: formOrcamento.endDate,
       };
       setMetasOrcamento([...metasOrcamento, novaMeta]);
     }
@@ -376,7 +324,7 @@ export default function Metas() {
               </Card>
             ) : (
               metasGastos.map((meta) => {
-                const percentual = (meta.valorGasto / meta.valorLimite) * 100;
+                const percentual = (meta.spentValue / meta.limitValue) * 100;
                 const isExcedido = percentual > 100;
                 const isAlerta = percentual > 80 && percentual <= 100;
 
@@ -387,10 +335,10 @@ export default function Metas() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="text-lg font-bold text-neutral-900">
-                            {meta.categoria}
+                            {meta.category}
                           </h3>
                           <p className="text-sm text-neutral-500">
-                            Período: {formatarMes(meta.mes)}
+                            Período: {formatarMes(meta.date as string)}
                           </p>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -447,13 +395,13 @@ export default function Metas() {
                           }`}
                         >
                           R${" "}
-                          {meta.valorGasto.toLocaleString("pt-BR", {
+                          {meta.spentValue.toLocaleString("pt-BR", {
                             minimumFractionDigits: 2,
                           })}
                         </span>
                         <span className="text-neutral-600 font-medium">
                           / R${" "}
-                          {meta.valorLimite.toLocaleString("pt-BR", {
+                          {meta.limitValue.toLocaleString("pt-BR", {
                             minimumFractionDigits: 2,
                           })}
                         </span>
@@ -481,7 +429,7 @@ export default function Metas() {
                             <span className="text-sm font-semibold text-red-600">
                               Excedido em R${" "}
                               {(
-                                meta.valorGasto - meta.valorLimite
+                                meta.spentValue - meta.limitValue
                               ).toLocaleString("pt-BR", {
                                 minimumFractionDigits: 2,
                               })}
@@ -491,7 +439,7 @@ export default function Metas() {
                             <span className="text-sm text-neutral-600">
                               Resta R${" "}
                               {(
-                                meta.valorLimite - meta.valorGasto
+                                meta.limitValue - meta.spentValue
                               ).toLocaleString("pt-BR", {
                                 minimumFractionDigits: 2,
                               })}
@@ -539,7 +487,7 @@ export default function Metas() {
               </Card>
             ) : (
               metasOrcamento.map((meta) => {
-                const percentual = (meta.valorAtual / meta.valorAlvo) * 100;
+                const percentual = (meta.currentValue / meta.targetValue) * 100;
                 const concluida = percentual >= 100;
 
                 return (
@@ -550,7 +498,7 @@ export default function Metas() {
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-1">
                             <h3 className="text-lg font-bold text-neutral-900">
-                              {meta.nome}
+                              {meta.name}
                             </h3>
                             {concluida && (
                               <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
@@ -559,8 +507,8 @@ export default function Metas() {
                             )}
                           </div>
                           <p className="text-sm text-neutral-500">
-                            {formatarData(meta.dataInicio)} até{" "}
-                            {formatarData(meta.dataFim)}
+                            {formatarData(meta.startDate as string)} até{" "}
+                            {formatarData(meta.endDate as string)}
                           </p>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -611,13 +559,13 @@ export default function Metas() {
                       <div className="flex items-center justify-between">
                         <span className="text-2xl font-bold text-green-600">
                           R${" "}
-                          {meta.valorAtual.toLocaleString("pt-BR", {
+                          {meta.currentValue.toLocaleString("pt-BR", {
                             minimumFractionDigits: 2,
                           })}
                         </span>
                         <span className="text-neutral-600 font-medium">
                           / R${" "}
-                          {meta.valorAlvo.toLocaleString("pt-BR", {
+                          {meta.targetValue.toLocaleString("pt-BR", {
                             minimumFractionDigits: 2,
                           })}
                         </span>
@@ -639,7 +587,7 @@ export default function Metas() {
                             <span className="text-sm text-neutral-600">
                               Faltam R${" "}
                               {(
-                                meta.valorAlvo - meta.valorAtual
+                                meta.targetValue - meta.currentValue
                               ).toLocaleString("pt-BR", {
                                 minimumFractionDigits: 2,
                               })}
@@ -690,18 +638,18 @@ export default function Metas() {
               <form onSubmit={handleSubmitGasto} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">
-                    Categoria <span className="text-red-500">*</span>
+                    category <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formGasto.categoria}
+                    value={formGasto.category}
                     onChange={(e) =>
-                      setFormGasto({ ...formGasto, categoria: e.target.value })
+                      setFormGasto({ ...formGasto, category: e.target.value })
                     }
                     required
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                   >
-                    <option value="">Selecione uma categoria</option>
-                    {categorias.map((cat) => (
+                    <option value="">Selecione uma category</option>
+                    {categorys.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
@@ -720,11 +668,11 @@ export default function Metas() {
                     <input
                       type="number"
                       step="0.01"
-                      value={formGasto.valorLimite}
+                      value={formGasto.limitValue}
                       onChange={(e) =>
                         setFormGasto({
                           ...formGasto,
-                          valorLimite: e.target.value,
+                          limitValue: e.target.value,
                         })
                       }
                       placeholder="0,00"
@@ -745,11 +693,11 @@ export default function Metas() {
                     <input
                       type="number"
                       step="0.01"
-                      value={formGasto.valorGasto}
+                      value={formGasto.spentValue}
                       onChange={(e) =>
                         setFormGasto({
                           ...formGasto,
-                          valorGasto: e.target.value,
+                          spentValue: e.target.value,
                         })
                       }
                       placeholder="0,00"
@@ -842,11 +790,11 @@ export default function Metas() {
                     <input
                       type="number"
                       step="0.01"
-                      value={formOrcamento.valorAlvo}
+                      value={formOrcamento.targetValue}
                       onChange={(e) =>
                         setFormOrcamento({
                           ...formOrcamento,
-                          valorAlvo: e.target.value,
+                          targetValue: e.target.value,
                         })
                       }
                       placeholder="0,00"
@@ -867,11 +815,11 @@ export default function Metas() {
                     <input
                       type="number"
                       step="0.01"
-                      value={formOrcamento.valorAtual}
+                      value={formOrcamento.currentValue}
                       onChange={(e) =>
                         setFormOrcamento({
                           ...formOrcamento,
-                          valorAtual: e.target.value,
+                          currentValue: e.target.value,
                         })
                       }
                       placeholder="0,00"
@@ -884,12 +832,12 @@ export default function Metas() {
                   <Input
                     label="Data Início"
                     type="date"
-                    name="dataInicio"
-                    value={formOrcamento.dataInicio}
+                    name="startDate"
+                    value={formOrcamento.startDate}
                     onChange={(e) =>
                       setFormOrcamento({
                         ...formOrcamento,
-                        dataInicio: e.target.value,
+                        startDate: e.target.value,
                       })
                     }
                     required
@@ -898,12 +846,12 @@ export default function Metas() {
                   <Input
                     label="Data Fim"
                     type="date"
-                    name="dataFim"
-                    value={formOrcamento.dataFim}
+                    name="endDate"
+                    value={formOrcamento.endDate}
                     onChange={(e) =>
                       setFormOrcamento({
                         ...formOrcamento,
-                        dataFim: e.target.value,
+                        endDate: e.target.value,
                       })
                     }
                     required

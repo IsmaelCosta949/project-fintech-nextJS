@@ -1,59 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "~/components/Card";
 import Button from "~/components/Button";
 import Input from "~/components/Input";
-import type { Transaction } from "~/types";
+import { Transactions } from "../interfaces/transactions";
+import { transactionService } from "../services/transactionService";
 
 export default function Transacoes() {
-  const [transacoes, setTransacoes] = useState<Transaction[]>([
-    {
-      id: "1",
-      descricao: "Salário",
-      valor: 5000.0,
-      tipo: "receita",
-      categoria: "Salário",
-      data: "2025-11-01",
-      hora: "08:00",
-    },
-    {
-      id: "2",
-      descricao: "Supermercado",
-      valor: -328.5,
-      tipo: "despesa",
-      categoria: "Alimentação",
-      data: "2025-10-31",
-      hora: "18:30",
-    },
-    {
-      id: "3",
-      descricao: "Netflix",
-      valor: -55.9,
-      tipo: "despesa",
-      categoria: "Entretenimento",
-      data: "2025-10-30",
-      hora: "10:00",
-    },
-    {
-      id: "4",
-      descricao: "Freelance",
-      valor: 1200.0,
-      tipo: "receita",
-      categoria: "Receita Extra",
-      data: "2025-10-28",
-      hora: "15:00",
-    },
-    {
-      id: "5",
-      descricao: "Uber",
-      valor: -45.0,
-      tipo: "despesa",
-      categoria: "Transporte",
-      data: "2025-10-27",
-      hora: "22:15",
-    },
-  ]);
+  const [transacoes, setTransacoes] = useState<Transactions[]>(
+    []
+  );
+  useEffect(() => {
+    async function fetchTransactions() {
+      try {
+        const data = await transactionService.getTransactions();
+        setTransacoes(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    fetchTransactions();
+  }, []);
 
   const [modalAberto, setModalAberto] = useState(false);
   const [modalExcluir, setModalExcluir] = useState(false);
@@ -61,7 +30,7 @@ export default function Transacoes() {
     string | null
   >(null);
   const [transacaoEditando, setTransacaoEditando] =
-    useState<Transaction | null>(null);
+    useState<Transactions | null>(null);
   const [filtro, setFiltro] = useState<"todos" | "receita" | "despesa">(
     "todos"
   );
@@ -91,16 +60,16 @@ export default function Transacoes() {
     ],
   };
 
-  const abrirModal = (transacao?: Transaction) => {
+  const abrirModal = (transacao?: Transactions) => {
     if (transacao) {
       setTransacaoEditando(transacao);
       setFormData({
-        descricao: transacao.descricao,
-        valor: Math.abs(transacao.valor).toString(),
-        tipo: transacao.tipo,
-        categoria: transacao.categoria,
-        data: transacao.data,
-        hora: transacao.hora || "",
+        descricao: transacao.description,
+        valor: Math.abs(transacao.value).toString(),
+        tipo: transacao.type,
+        categoria: transacao.category,
+        data: transacao.date,
+        hora: transacao.hour || "",
       });
     } else {
       setTransacaoEditando(null);
@@ -148,14 +117,14 @@ export default function Transacoes() {
       );
     } else {
       // Adicionar
-      const novaTransacao: Transaction = {
+      const novaTransacao: Transactions = {
         id: Date.now().toString(),
-        descricao: formData.descricao,
-        valor: valorNumerico,
-        tipo: formData.tipo,
-        categoria: formData.categoria,
-        data: formData.data,
-        hora: formData.hora,
+        description: formData.descricao,
+        value: valorNumerico,
+        type: formData.tipo,
+        category: formData.categoria,
+        date: formData.data,
+        hour: formData.hora,
       };
       setTransacoes([novaTransacao, ...transacoes]);
     }
@@ -184,21 +153,21 @@ export default function Transacoes() {
   const transacoesFiltradas = transacoes
     .filter((t) => {
       if (filtro === "todos") return true;
-      return t.tipo === filtro;
+      return t.type === filtro;
     })
     .sort((a, b) => {
       if (ordenacao === "data") {
-        return new Date(b.data).getTime() - new Date(a.data).getTime();
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
       }
-      return Math.abs(b.valor) - Math.abs(a.valor);
+      return Math.abs(b.value) - Math.abs(a.value);
     });
 
   const totalReceitas = transacoes
-    .filter((t) => t.tipo === "receita")
-    .reduce((acc, t) => acc + t.valor, 0);
+    .filter((t) => t.type === "receita")
+    .reduce((acc, t) => acc + t.value, 0);
   const totalDespesas = transacoes
-    .filter((t) => t.tipo === "despesa")
-    .reduce((acc, t) => acc + Math.abs(t.valor), 0);
+    .filter((t) => t.type === "despesa")
+    .reduce((acc, t) => acc + Math.abs(t.value), 0);
   const saldo = totalReceitas - totalDespesas;
 
   const formatarData = (data: string) => {
@@ -362,14 +331,14 @@ export default function Transacoes() {
                   <div className="flex items-center space-x-4 flex-1">
                     <div
                       className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        transacao.tipo === "receita"
+                        transacao.type === "receita"
                           ? "bg-green-100"
                           : "bg-red-100"
                       }`}
                     >
                       <svg
                         className={`w-6 h-6 ${
-                          transacao.tipo === "receita"
+                          transacao.type === "receita"
                             ? "text-green-600"
                             : "text-red-600"
                         }`}
@@ -377,7 +346,7 @@ export default function Transacoes() {
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
-                        {transacao.tipo === "receita" ? (
+                        {transacao.type === "receita" ? (
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -397,11 +366,11 @@ export default function Transacoes() {
 
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-neutral-900 truncate">
-                        {transacao.descricao}
+                        {transacao.description}
                       </p>
                       <p className="text-sm text-neutral-500">
-                        {transacao.categoria} • {formatarData(transacao.data)}
-                        {transacao.hora && ` às ${transacao.hora}`}
+                        {transacao.category} • {formatarData(transacao.date)}
+                        {transacao.hour && ` às ${transacao.hour}`}
                       </p>
                     </div>
                   </div>
@@ -409,13 +378,13 @@ export default function Transacoes() {
                   <div className="flex items-center space-x-4">
                     <span
                       className={`text-lg font-bold ${
-                        transacao.tipo === "receita"
+                        transacao.type === "receita"
                           ? "text-green-600"
                           : "text-red-600"
                       }`}
                     >
-                      {transacao.tipo === "receita" ? "+" : "-"}R${" "}
-                      {Math.abs(transacao.valor).toLocaleString("pt-BR", {
+                      {transacao.type === "receita" ? "+" : "-"}R${" "}
+                      {Math.abs(transacao.value).toLocaleString("pt-BR", {
                         minimumFractionDigits: 2,
                       })}
                     </span>
