@@ -1,24 +1,33 @@
 import { Users } from "../interfaces/users";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+const API_BASE_URL = "https://wallets-api-fintech.onrender.com/api";
 
 export const userService = {
-  async getUser(): Promise<Users> {
-    // const res = await fetch(`${API_BASE_URL}/user`);
-    // if (!res.ok) {
-    //   throw new Error(`Failed to fetch user: ${res.statusText}`);
-    // }
+  async getUser(email: string, senha: string): Promise<Users> {
+    const res = await fetch(`${API_BASE_URL}/accounts/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: email,
+        password: senha,
+      }),
+    });
 
-    // const data = await res.json();
+    if (!res.ok) {
+      throw new Error(`Failed to fetch recent transactions: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+
+    console.log(data);
 
     return {
-      nome: "João da Silva",
-      email: "joao@email.com",
-      cpf: "123.456.789-00",
-      telefone: "(11) 98765-4321",
-      dinheiroMensal: 5000.0,
-      dataCadastro: "2024-01-15",
+      accountId: 0,
+      name: "joao",
+      status: "ativo",
+      email: "joao.silva@gmail.com",
     };
   },
 };

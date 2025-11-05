@@ -19,7 +19,7 @@ export default function Home() {
   );
   const [metasGastos, setMetasGastos] = useState<GoalSpent[]>([]);
   const [metasOrcamento, setMetasOrcamento] = useState<GoalBudget[]>([]);
-  const { user, setUser } = useUser();
+  const { user } = useUser();
 
   useEffect(() => {
     async function fetchTransactions() {
@@ -44,19 +44,9 @@ export default function Home() {
         console.error(err);
       }
     }
-    async function fetchUser() {
-      try {
-        const data = await userService.getUser();
-        setUser(data);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    fetchUser();
     fetchTransactions();
     fetchGoals();
-  }, [user]);
+  }, []);
 
   const totalReceitas = transacoesRecentes
     .filter((t) => t.type === "receita")
@@ -124,7 +114,7 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-3xl font-bold text-neutral-900">
-              Olá, {user?.nome}! 👋
+              Olá, {user?.name}! 👋
             </h2>
             <p className="text-neutral-600 mt-1">
               Bem-vindo de volta ao seu painel financeiro

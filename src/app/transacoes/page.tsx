@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Card from "~/components/Card";
 import Button from "~/components/Button";
 import Input from "~/components/Input";
-import { Transactions } from "../interfaces/transactions";
+import { Transactions, TransactionsPost } from "../interfaces/transactions";
 import { transactionService } from "../services/transactionService";
-import { formatDate, formatTime } from "~/utils/formatDate";
+import { combineDateTime, formatDate, formatTime } from "~/utils/formatDate";
+import { Wallets } from "../interfaces/wallets";
+import { walletService } from "../services/walletService";
 
 export default function Transacoes() {
   const [transacoes, setTransacoes] = useState<Transactions[]>([]);
@@ -35,22 +37,39 @@ export default function Transacoes() {
   );
   const [ordenacao, setOrdenacao] = useState<"data" | "valor">("data");
 
-  const categorias = {
-    receita: ["Salário", "Receita Extra", "Investimento", "Outros"],
-    despesa: [
-      "Alimentação",
-      "Transporte",
-      "Moradia",
-      "Saúde",
-      "Educação",
-      "Entretenimento",
-      "Compras",
-      "Contas",
-      "Outros",
-    ],
-  };
+  const [categorias, setCategorias] = useState<{
+    receita: string[];
+    despesa: string[];
+  }>({ receita: [], despesa: [] });
+
+  useEffect(() => {
+    async function fetchCategorias() {
+      try {
+        const wallets = await walletService.getWallets();
+        const novasCategorias = {
+          receita: [] as string[],
+          despesa: [] as string[],
+        };
+
+        wallets.forEach((wallet) => {
+          if (wallet.type === "receita") {
+            novasCategorias.receita.push(wallet.name);
+          } else if (wallet.type === "despesa") {
+            novasCategorias.despesa.push(wallet.name);
+          }
+        });
+
+        setCategorias(novasCategorias);
+      } catch (err) {
+        console.error("Erro ao buscar categorias:", err);
+      }
+    }
+
+    fetchCategorias();
+  }, []);
 
   const [formData, setFormData] = useState<{
+    transactionId: number;
     descricao: string;
     valor: string;
     tipo: keyof typeof categorias | "";
@@ -58,6 +77,7 @@ export default function Transacoes() {
     data: string;
     hora: string;
   }>({
+    transactionId: 0,
     descricao: "",
     valor: "",
     tipo: "",
@@ -69,7 +89,9 @@ export default function Transacoes() {
   const abrirModal = (transacao?: Transactions) => {
     if (transacao) {
       setTransacaoEditando(transacao);
+
       setFormData({
+        transactionId: transacao.id,
         descricao: transacao.description,
         valor: Math.abs(transacao.value).toString(),
         tipo: transacao.type as "receita" | "despesa" | "",
@@ -80,6 +102,7 @@ export default function Transacoes() {
     } else {
       setTransacaoEditando(null);
       setFormData({
+        transactionId: 0,
         descricao: "",
         valor: "",
         tipo: "despesa",
@@ -96,7 +119,7 @@ export default function Transacoes() {
     setTransacaoEditando(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const valorNumerico =
@@ -106,35 +129,36 @@ export default function Transacoes() {
 
     if (transacaoEditando) {
       // Editar
-      setTransacoes(
-        transacoes.map((t) =>
-          t.id === transacaoEditando.id
-            ? {
-                ...t,
-                descricao: formData.descricao,
-                valor: valorNumerico,
-                tipo: formData.tipo,
-                categoria: formData.categoria,
-                data: formData.data,
-                hora: formData.hora,
-              }
-            : t
-        )
+      const wallets = await walletService.getWallets();
+      const walletId = wallets.find((w) => w.name === formData.categoria);
+      const editTransaction: TransactionsPost = {
+        walletId: walletId?.walletId || 0,
+        description: formData.descricao,
+        type: formData.tipo,
+        value: valorNumerico,
+        transactionAt: combineDateTime(formData.data, formData.hora),
+      };
+      console.log(editTransaction, formData.transactionId);
+
+      const response = await transactionService.editTransaction(
+        editTransaction,
+        formData.transactionId
       );
     } else {
       // Adicionar
-      const novaTransacao: Transactions = {
+      const wallets = await walletService.getWallets();
+      const walletId = wallets.find((w) => w.name === formData.categoria);
+      const newTransaction: TransactionsPost = {
+        walletId: walletId?.walletId || 0,
         description: formData.descricao,
-        value: valorNumerico,
         type: formData.tipo,
-        category: formData.categoria,
-        date: formData.data,
-        hour: formData.hora,
+        value: valorNumerico,
+        transactionAt: combineDateTime(formData.data, formData.hora),
       };
-      console.log(novaTransacao);
+      const response = await transactionService.postTransaction(newTransaction);
     }
 
-    fecharModal();
+    // fecharModal();
   };
 
   const abrirModalExcluir = (id: number) => {
@@ -142,9 +166,11 @@ export default function Transacoes() {
     setModalExcluir(true);
   };
 
-  const confirmarExclusao = () => {
+  const confirmarExclusao = async () => {
     if (transacaoParaExcluir) {
-      setTransacoes(transacoes.filter((t) => t.id !== transacaoParaExcluir));
+      const response = await transactionService.deleteTransaction(
+        transacaoParaExcluir
+      );
     }
     setModalExcluir(false);
     setTransacaoParaExcluir(null);

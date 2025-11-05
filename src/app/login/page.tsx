@@ -4,8 +4,11 @@ import { useState } from "react";
 import Button from "~/components/Button";
 import Input from "~/components/Input";
 import Card from "~/components/Card";
+import { userService } from "../services/userService";
+import { useUser } from "../context/UserContext";
 
 export default function Login() {
+  const { user, setUser } = useUser();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     nome: "",
@@ -23,17 +26,20 @@ export default function Login() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLogin) {
-      console.log("Login:", { email: formData.email, senha: formData.senha });
-      // Redirecionar para /home após login
-      window.location.href = "/home";
-    } else {
-      console.log("Cadastro:", formData);
-      // Redirecionar para /home após cadastro
-      window.location.href = "/home";
-    }
+    const response = await userService.getUser(formData.nome, formData.senha);
+    console.log(response);
+
+    // setUser(response);
+
+    // if (isLogin) {
+    //   // Redirecionar para /home após login
+    //   window.location.href = "/home";
+    // } else {
+    //   // Redirecionar para /home após cadastro
+    //   window.location.href = "/home";
+    // }
   };
 
   const formatCurrency = (value: string) => {

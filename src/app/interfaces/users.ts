@@ -1,8 +1,6 @@
 export interface Users {
-  nome: string;
+  accountId: number;
+  name: string;
+  status: string;
   email: string;
-  cpf: string;
-  telefone: string
-  dinheiroMensal: number;
-  dataCadastro: string
 }
