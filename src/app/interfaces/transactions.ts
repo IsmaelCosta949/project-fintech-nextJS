@@ -1,9 +1,10 @@
 export interface Transactions {
-  id: string;
+  id?: number;
+  walletId?: number;
   description: string;
   value: number;
-  type: "receita" | "despesa";
-  category: string;
+  type: string;
+  category: string
   date: string;
-  hour?: string;
+  hour: string
 }

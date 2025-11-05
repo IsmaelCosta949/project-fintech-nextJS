@@ -9,6 +9,7 @@ import { goalService } from "../services/goalService";
 import { GoalBudget, GoalSpent } from "../interfaces/goals";
 import { useUser } from "../context/UserContext";
 import { userService } from "../services/userService";
+import { formatDateTime } from "~/utils/formatDate";
 
 export default function Home() {
   const [dinheiroMensal] = useState(5000.0);
@@ -24,7 +25,7 @@ export default function Home() {
     async function fetchTransactions() {
       try {
         const data = await transactionService.getTransactions();
-        setTransacoesRecentes(data);
+        setTransacoesRecentes(data.slice(0, 3));
       } catch (err) {
         console.error(err);
       }
@@ -45,17 +46,17 @@ export default function Home() {
     }
     async function fetchUser() {
       try {
-        const data = await userService.getUser()
-        setUser(data)
+        const data = await userService.getUser();
+        setUser(data);
       } catch (err) {
         console.error(err);
       }
     }
 
-    fetchUser()
+    fetchUser();
     fetchTransactions();
     fetchGoals();
-  }, []);
+  }, [user]);
 
   const totalReceitas = transacoesRecentes
     .filter((t) => t.type === "receita")
@@ -401,7 +402,8 @@ export default function Home() {
                       {transacao.description}
                     </p>
                     <p className="text-sm text-neutral-500">
-                      {transacao.category} • {transacao.date}
+                      {transacao.type} •{" "}
+                      {formatDateTime(transacao.date)}
                     </p>
                   </div>
                 </div>

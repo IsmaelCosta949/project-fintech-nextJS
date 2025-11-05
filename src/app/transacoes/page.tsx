@@ -6,11 +6,10 @@ import Button from "~/components/Button";
 import Input from "~/components/Input";
 import { Transactions } from "../interfaces/transactions";
 import { transactionService } from "../services/transactionService";
+import { formatDate, formatTime } from "~/utils/formatDate";
 
 export default function Transacoes() {
-  const [transacoes, setTransacoes] = useState<Transactions[]>(
-    []
-  );
+  const [transacoes, setTransacoes] = useState<Transactions[]>([]);
   useEffect(() => {
     async function fetchTransactions() {
       try {
@@ -27,7 +26,7 @@ export default function Transacoes() {
   const [modalAberto, setModalAberto] = useState(false);
   const [modalExcluir, setModalExcluir] = useState(false);
   const [transacaoParaExcluir, setTransacaoParaExcluir] = useState<
-    string | null
+    number | null
   >(null);
   const [transacaoEditando, setTransacaoEditando] =
     useState<Transactions | null>(null);
@@ -35,15 +34,6 @@ export default function Transacoes() {
     "todos"
   );
   const [ordenacao, setOrdenacao] = useState<"data" | "valor">("data");
-
-  const [formData, setFormData] = useState({
-    descricao: "",
-    valor: "",
-    tipo: "despesa" as "receita" | "despesa",
-    categoria: "",
-    data: new Date().toISOString().split("T")[0],
-    hora: new Date().toTimeString().slice(0, 5),
-  });
 
   const categorias = {
     receita: ["Salário", "Receita Extra", "Investimento", "Outros"],
@@ -60,16 +50,32 @@ export default function Transacoes() {
     ],
   };
 
+  const [formData, setFormData] = useState<{
+    descricao: string;
+    valor: string;
+    tipo: keyof typeof categorias | "";
+    categoria: string;
+    data: string;
+    hora: string;
+  }>({
+    descricao: "",
+    valor: "",
+    tipo: "",
+    categoria: "",
+    data: new Date().toISOString().split("T")[0],
+    hora: new Date().toTimeString().slice(0, 5),
+  });
+
   const abrirModal = (transacao?: Transactions) => {
     if (transacao) {
       setTransacaoEditando(transacao);
       setFormData({
         descricao: transacao.description,
         valor: Math.abs(transacao.value).toString(),
-        tipo: transacao.type,
+        tipo: transacao.type as "receita" | "despesa" | "",
         categoria: transacao.category,
         data: transacao.date,
-        hora: transacao.hour || "",
+        hora: transacao.hour,
       });
     } else {
       setTransacaoEditando(null);
@@ -118,7 +124,6 @@ export default function Transacoes() {
     } else {
       // Adicionar
       const novaTransacao: Transactions = {
-        id: Date.now().toString(),
         description: formData.descricao,
         value: valorNumerico,
         type: formData.tipo,
@@ -126,13 +131,13 @@ export default function Transacoes() {
         date: formData.data,
         hour: formData.hora,
       };
-      setTransacoes([novaTransacao, ...transacoes]);
+      console.log(novaTransacao);
     }
 
     fecharModal();
   };
 
-  const abrirModalExcluir = (id: string) => {
+  const abrirModalExcluir = (id: number) => {
     setTransacaoParaExcluir(id);
     setModalExcluir(true);
   };
@@ -369,8 +374,8 @@ export default function Transacoes() {
                         {transacao.description}
                       </p>
                       <p className="text-sm text-neutral-500">
-                        {transacao.category} • {formatarData(transacao.date)}
-                        {transacao.hour && ` às ${transacao.hour}`}
+                        {transacao.category} • {formatarData(transacao.date)}{" "}
+                        {formatTime(transacao.date)}
                       </p>
                     </div>
                   </div>
@@ -410,7 +415,7 @@ export default function Transacoes() {
                         </svg>
                       </button>
                       <button
-                        onClick={() => abrirModalExcluir(transacao.id)}
+                        onClick={() => abrirModalExcluir(transacao.id || 0)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Excluir"
                       >
@@ -558,11 +563,13 @@ export default function Transacoes() {
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                   >
                     <option value="">Selecione uma categoria</option>
-                    {categorias[formData.tipo].map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
+
+                    {formData.tipo &&
+                      categorias[formData.tipo]?.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -572,9 +579,9 @@ export default function Transacoes() {
                     type="date"
                     name="data"
                     value={formData.data}
-                    onChange={(e) =>
-                      setFormData({ ...formData, data: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setFormData({ ...formData, data: e.target.value });
+                    }}
                     required
                   />
 
@@ -583,9 +590,9 @@ export default function Transacoes() {
                     type="time"
                     name="hora"
                     value={formData.hora}
-                    onChange={(e) =>
-                      setFormData({ ...formData, hora: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setFormData({ ...formData, hora: e.target.value });
+                    }}
                   />
                 </div>
 
