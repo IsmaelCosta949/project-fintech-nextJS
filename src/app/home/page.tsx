@@ -1,83 +1,68 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "~/components/Card";
 import Button from "~/components/Button";
+import { transactionService } from "../services/transactionService";
+import { Transactions } from "../interfaces/transactions";
+import { goalService } from "../services/goalService";
+import { GoalBudget, GoalSpent } from "../interfaces/goals";
+import { useUser } from "../context/UserContext";
+import { userService } from "../services/userService";
 
 export default function Home() {
   const [dinheiroMensal] = useState(5000.0);
   const [saldoAtual] = useState(3245.5);
+  const [transacoesRecentes, setTransacoesRecentes] = useState<Transactions[]>(
+    []
+  );
+  const [metasGastos, setMetasGastos] = useState<GoalSpent[]>([]);
+  const [metasOrcamento, setMetasOrcamento] = useState<GoalBudget[]>([]);
+  const { user, setUser } = useUser();
 
-  // Transações recentes (prévia)
-  const transacoesRecentes = [
-    {
-      id: "1",
-      descricao: "Salário",
-      valor: 5000.0,
-      tipo: "receita" as const,
-      categoria: "Salário",
-      data: "01/11/2025",
-    },
-    {
-      id: "2",
-      descricao: "Supermercado",
-      valor: -328.5,
-      tipo: "despesa" as const,
-      categoria: "Alimentação",
-      data: "31/10/2025",
-    },
-    {
-      id: "3",
-      descricao: "Netflix",
-      valor: -55.9,
-      tipo: "despesa" as const,
-      categoria: "Entretenimento",
-      data: "30/10/2025",
-    },
-    {
-      id: "4",
-      descricao: "Freelance",
-      valor: 1200.0,
-      tipo: "receita" as const,
-      categoria: "Receita Extra",
-      data: "28/10/2025",
-    },
-  ];
+  useEffect(() => {
+    async function fetchTransactions() {
+      try {
+        const data = await transactionService.getTransactions();
+        setTransacoesRecentes(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    async function fetchGoals() {
+      try {
+        const data = await goalService.getGoalSpent();
+        setMetasGastos(data);
+      } catch (err) {
+        console.error(err);
+      }
+      try {
+        const data = await goalService.getGoalBudget();
+        setMetasOrcamento(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    async function fetchUser() {
+      try {
+        const data = await userService.getUser()
+        setUser(data)
+      } catch (err) {
+        console.error(err);
+      }
+    }
 
-  // Metas de gastos
-  const metasGastos = [
-    {
-      id: "1",
-      categoria: "Alimentação",
-      valorLimite: 800,
-      valorGasto: 528.5,
-    },
-    { id: "2", categoria: "Transporte", valorLimite: 400, valorGasto: 185.0 },
-    {
-      id: "3",
-      categoria: "Entretenimento",
-      valorLimite: 300,
-      valorGasto: 255.9,
-    },
-  ];
-
-  // Metas de orçamento
-  const metasOrcamento = [
-    {
-      id: "1",
-      nome: "Fundo de Emergência",
-      valorAlvo: 10000,
-      valorAtual: 4500,
-    },
-    { id: "2", nome: "Viagem 2026", valorAlvo: 5000, valorAtual: 1200 },
-  ];
+    fetchUser()
+    fetchTransactions();
+    fetchGoals();
+  }, []);
 
   const totalReceitas = transacoesRecentes
-    .filter((t) => t.tipo === "receita")
-    .reduce((acc, t) => acc + t.valor, 0);
+    .filter((t) => t.type === "receita")
+    .reduce((acc, t) => acc + t.value, 0);
   const totalDespesas = transacoesRecentes
-    .filter((t) => t.tipo === "despesa")
-    .reduce((acc, t) => acc + Math.abs(t.valor), 0);
+    .filter((t) => t.type === "despesa")
+    .reduce((acc, t) => acc + Math.abs(t.value), 0);
 
   const percentualDinheiroMensal = (saldoAtual / dinheiroMensal) * 100;
 
@@ -138,7 +123,7 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-3xl font-bold text-neutral-900">
-              Olá, João! 👋
+              Olá, {user?.nome}! 👋
             </h2>
             <p className="text-neutral-600 mt-1">
               Bem-vindo de volta ao seu painel financeiro
@@ -276,13 +261,13 @@ export default function Home() {
               </div>
               <div className="space-y-2">
                 {metasGastos.slice(0, 2).map((meta) => {
-                  const percentual = (meta.valorGasto / meta.valorLimite) * 100;
+                  const percentual = (meta.spentValue / meta.limitValue) * 100;
                   return (
                     <div
                       key={meta.id}
                       className="flex items-center justify-between text-xs"
                     >
-                      <span className="text-neutral-700">{meta.categoria}</span>
+                      <span className="text-neutral-700">{meta.category}</span>
                       <span
                         className={`font-semibold ${
                           percentual > 80 ? "text-orange-600" : "text-green-600"
@@ -330,14 +315,15 @@ export default function Home() {
               </div>
               <div className="space-y-2">
                 {metasOrcamento.slice(0, 2).map((meta) => {
-                  const percentual = (meta.valorAtual / meta.valorAlvo) * 100;
+                  const percentual =
+                    (meta.currentValue / meta.targetValue) * 100;
                   return (
                     <div
                       key={meta.id}
                       className="flex items-center justify-between text-xs"
                     >
                       <span className="text-neutral-700 truncate">
-                        {meta.nome}
+                        {meta.name}
                       </span>
                       <span className="font-semibold text-blue-600">
                         {percentual.toFixed(0)}%
@@ -378,14 +364,14 @@ export default function Home() {
                 <div className="flex items-center space-x-4">
                   <div
                     className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      transacao.tipo === "receita"
+                      transacao.type === "receita"
                         ? "bg-green-100"
                         : "bg-red-100"
                     }`}
                   >
                     <svg
                       className={`w-6 h-6 ${
-                        transacao.tipo === "receita"
+                        transacao.type === "receita"
                           ? "text-green-600"
                           : "text-red-600"
                       }`}
@@ -393,7 +379,7 @@ export default function Home() {
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
-                      {transacao.tipo === "receita" ? (
+                      {transacao.type === "receita" ? (
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -412,22 +398,22 @@ export default function Home() {
                   </div>
                   <div>
                     <p className="font-semibold text-neutral-900">
-                      {transacao.descricao}
+                      {transacao.description}
                     </p>
                     <p className="text-sm text-neutral-500">
-                      {transacao.categoria} • {transacao.data}
+                      {transacao.category} • {transacao.date}
                     </p>
                   </div>
                 </div>
                 <span
                   className={`text-lg font-bold ${
-                    transacao.tipo === "receita"
+                    transacao.type === "receita"
                       ? "text-green-600"
                       : "text-red-600"
                   }`}
                 >
-                  {transacao.tipo === "receita" ? "+" : "-"}R${" "}
-                  {Math.abs(transacao.valor).toLocaleString("pt-BR", {
+                  {transacao.type === "receita" ? "+" : "-"}R${" "}
+                  {Math.abs(transacao.value).toLocaleString("pt-BR", {
                     minimumFractionDigits: 2,
                   })}
                 </span>

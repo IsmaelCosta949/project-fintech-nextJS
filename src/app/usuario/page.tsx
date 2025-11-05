@@ -1,29 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "~/components/Card";
 import Button from "~/components/Button";
 import Input from "~/components/Input";
+import { useUser } from "../context/UserContext";
 
 export default function Usuario() {
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [modalSairAberto, setModalSairAberto] = useState(false);
+  const { user, setUser } = useUser();
 
   const [dadosUsuario, setDadosUsuario] = useState({
-    nome: "João da Silva",
-    email: "joao@email.com",
-    cpf: "123.456.789-00",
-    telefone: "(11) 98765-4321",
-    dinheiroMensal: 5000.0,
-    dataCadastro: "2024-01-15",
+    nome: user?.nome,
+    email: user?.email,
+    cpf: user?.cpf,
+    telefone: user?.telefone,
+    dinheiroMensal: user?.dinheiroMensal,
+    dataCadastro: user?.dataCadastro,
   });
+  useEffect(() => {
+    setDadosUsuario({
+      nome: user?.nome,
+      email: user?.email,
+      cpf: user?.cpf,
+      telefone: user?.telefone,
+      dinheiroMensal: user?.dinheiroMensal,
+      dataCadastro: user?.dataCadastro,
+    });
+  }, [user]);
 
   const [formData, setFormData] = useState({
     nome: dadosUsuario.nome,
     email: dadosUsuario.email,
     cpf: dadosUsuario.cpf,
     telefone: dadosUsuario.telefone,
-    dinheiroMensal: dadosUsuario.dinheiroMensal.toString(),
+    dinheiroMensal: dadosUsuario.dinheiroMensal?.toString(),
     senhaAtual: "",
     novaSenha: "",
     confirmarNovaSenha: "",
@@ -35,7 +47,7 @@ export default function Usuario() {
       email: dadosUsuario.email,
       cpf: dadosUsuario.cpf,
       telefone: dadosUsuario.telefone,
-      dinheiroMensal: dadosUsuario.dinheiroMensal.toString(),
+      dinheiroMensal: dadosUsuario.dinheiroMensal?.toString(),
       senhaAtual: "",
       novaSenha: "",
       confirmarNovaSenha: "",
@@ -65,7 +77,9 @@ export default function Usuario() {
       email: formData.email,
       cpf: formData.cpf,
       telefone: formData.telefone,
-      dinheiroMensal: parseFloat(formData.dinheiroMensal),
+      dinheiroMensal: formData.dinheiroMensal
+        ? parseFloat(formData.dinheiroMensal)
+        : 0,
     });
 
     setModalEditarAberto(false);
@@ -142,10 +156,12 @@ export default function Usuario() {
                 <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-green-700 rounded-full flex items-center justify-center">
                   <span className="text-white text-3xl font-bold">
                     {dadosUsuario.nome
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)}
+                      ? dadosUsuario.nome
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                      : "Nome não informado"}
                   </span>
                 </div>
                 <button className="absolute bottom-0 right-0 w-8 h-8 bg-white border-2 border-green-600 rounded-full flex items-center justify-center hover:bg-green-50 transition-colors">
@@ -180,7 +196,10 @@ export default function Usuario() {
               <p className="text-neutral-600 mb-4">{dadosUsuario.email}</p>
               <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
                 <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full">
-                  Membro desde {formatarData(dadosUsuario.dataCadastro)}
+                  Membro desde{" "}
+                  {dadosUsuario.dataCadastro
+                    ? formatarData(dadosUsuario.dataCadastro)
+                    : "Data de cadastro não encontrada"}
                 </span>
               </div>
             </div>
@@ -203,28 +222,28 @@ export default function Usuario() {
             <div className="p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-600 mb-1">Nome Completo</p>
               <p className="font-semibold text-neutral-900">
-                {dadosUsuario.nome}
+                {dadosUsuario.nome || "Nome não informado"}
               </p>
             </div>
 
             <div className="p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-600 mb-1">E-mail</p>
               <p className="font-semibold text-neutral-900">
-                {dadosUsuario.email}
+                {dadosUsuario.email || "Email não informado"}
               </p>
             </div>
 
             <div className="p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-600 mb-1">CPF</p>
               <p className="font-semibold text-neutral-900">
-                {dadosUsuario.cpf || "Não informado"}
+                {dadosUsuario.cpf || "Cpf não informado"}
               </p>
             </div>
 
             <div className="p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-600 mb-1">Telefone</p>
               <p className="font-semibold text-neutral-900">
-                {dadosUsuario.telefone || "Não informado"}
+                {dadosUsuario.telefone || "Telefone não informado"}
               </p>
             </div>
           </div>
@@ -240,9 +259,11 @@ export default function Usuario() {
               <p className="text-sm text-green-700 mb-1">Dinheiro Mensal</p>
               <p className="text-2xl font-bold text-green-900">
                 R${" "}
-                {dadosUsuario.dinheiroMensal.toLocaleString("pt-BR", {
-                  minimumFractionDigits: 2,
-                })}
+                {dadosUsuario.dinheiroMensal
+                  ? dadosUsuario.dinheiroMensal.toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                    })
+                  : "Dinheiro mensal não informado"}
               </p>
             </div>
 
@@ -462,7 +483,7 @@ export default function Usuario() {
                   <Input
                     label="Nome Completo"
                     name="nome"
-                    value={formData.nome}
+                    value={formData.nome ? formData.nome : ""}
                     onChange={(e) =>
                       setFormData({ ...formData, nome: e.target.value })
                     }
@@ -473,7 +494,7 @@ export default function Usuario() {
                     label="E-mail"
                     type="email"
                     name="email"
-                    value={formData.email}
+                    value={formData.email ? formData.email : ""}
                     onChange={(e) =>
                       setFormData({ ...formData, email: e.target.value })
                     }
@@ -485,7 +506,7 @@ export default function Usuario() {
                   <Input
                     label="CPF"
                     name="cpf"
-                    value={formData.cpf}
+                    value={formData.cpf ? formData.cpf : ""}
                     onChange={(e) =>
                       setFormData({ ...formData, cpf: e.target.value })
                     }
@@ -495,7 +516,7 @@ export default function Usuario() {
                   <Input
                     label="Telefone"
                     name="telefone"
-                    value={formData.telefone}
+                    value={formData.telefone ? formData.telefone : ""}
                     onChange={(e) =>
                       setFormData({ ...formData, telefone: e.target.value })
                     }
