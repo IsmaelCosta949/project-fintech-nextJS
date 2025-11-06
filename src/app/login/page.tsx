@@ -4,7 +4,7 @@ import { useState } from "react";
 import Button from "~/components/Button";
 import Input from "~/components/Input";
 import Card from "~/components/Card";
-import { userService } from "../services/userService";
+import { getUser } from "../services/userService";
 import { useUser } from "../context/UserContext";
 
 export default function Login() {
@@ -28,18 +28,26 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const response = await userService.getUser(formData.nome, formData.senha);
-    console.log(response);
 
-    // setUser(response);
+    try {
+      const response = await getUser(formData.email, formData.senha);
 
-    // if (isLogin) {
-    //   // Redirecionar para /home após login
-    //   window.location.href = "/home";
-    // } else {
-    //   // Redirecionar para /home após cadastro
-    //   window.location.href = "/home";
-    // }
+      setUser(response);
+
+      localStorage.setItem("userId", response.accountId.toString());
+      localStorage.setItem("accountId", response.accountId.toString());
+      localStorage.setItem("userName", response.name);
+      localStorage.setItem("userEmail", response.email);
+
+      window.location.href = "/home";
+    } catch (error) {
+      console.error("❌ Erro no login:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Erro ao fazer login. Verifique suas credenciais."
+      );
+    }
   };
 
   const formatCurrency = (value: string) => {

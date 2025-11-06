@@ -5,57 +5,91 @@ import Card from "~/components/Card";
 import Button from "~/components/Button";
 import { transactionService } from "../services/transactionService";
 import { Transactions } from "../interfaces/transactions";
-import { goalService } from "../services/goalService";
+import { walletService } from "../services/walletService";
 import { GoalBudget, GoalSpent } from "../interfaces/goals";
 import { useUser } from "../context/UserContext";
-import { userService } from "../services/userService";
 import { formatDateTime } from "~/utils/formatDate";
 
 export default function Home() {
-  const [dinheiroMensal] = useState(5000.0);
-  const [saldoAtual] = useState(3245.5);
+  const [dinheiroMensal, setDinheiroMensal] = useState(0);
+  const [saldoAtual, setSaldoAtual] = useState(0);
+  const [totalDespesasMes, setTotalDespesasMes] = useState(0);
   const [transacoesRecentes, setTransacoesRecentes] = useState<Transactions[]>(
     []
   );
+  const [todasTransacoes, setTodasTransacoes] = useState<Transactions[]>([]);
   const [metasGastos, setMetasGastos] = useState<GoalSpent[]>([]);
   const [metasOrcamento, setMetasOrcamento] = useState<GoalBudget[]>([]);
   const { user } = useUser();
 
+  // Função para verificar se a transação é do mês atual
+  const isCurrentMonth = (dateString: string) => {
+    const transactionDate = new Date(dateString);
+    const now = new Date();
+    return (
+      transactionDate.getMonth() === now.getMonth() &&
+      transactionDate.getFullYear() === now.getFullYear()
+    );
+  };
+
   useEffect(() => {
-    async function fetchTransactions() {
+    async function fetchData() {
       try {
+        // Buscar todas as transações
         const data = await transactionService.getTransactions();
+        setTodasTransacoes(data);
+
+        // Pegar as 3 mais recentes
         setTransacoesRecentes(data.slice(0, 3));
+
+        // Calcular total de despesas do mês atual
+        const despesasMesAtual = data
+          .filter((t) => t.type === "EXPENSE" && isCurrentMonth(t.date))
+          .reduce((acc, t) => acc + Math.abs(t.value), 0);
+
+        setTotalDespesasMes(despesasMesAtual);
+
+        // Pegar salário mensal do localStorage (ou usar padrão de R$ 5000)
+        const salarioMensalStr = localStorage.getItem("salarioMensal");
+        const salarioMensal = salarioMensalStr
+          ? parseFloat(salarioMensalStr)
+          : 5000;
+        setDinheiroMensal(salarioMensal);
+
+        // Calcular saldo atual: Salário - Despesas do Mês
+        setSaldoAtual(salarioMensal - despesasMesAtual);
       } catch (err) {
-        console.error(err);
+        console.error("Erro ao buscar transações:", err);
       }
     }
+
     async function fetchGoals() {
       try {
-        const data = await goalService.getGoalSpent();
-        setMetasGastos(data);
+        const [gastos, orcamentos] = await Promise.all([
+          walletService.getGoalSpent(),
+          walletService.getGoalBudget(),
+        ]);
+        setMetasGastos(gastos);
+        setMetasOrcamento(orcamentos);
       } catch (err) {
-        console.error(err);
-      }
-      try {
-        const data = await goalService.getGoalBudget();
-        setMetasOrcamento(data);
-      } catch (err) {
-        console.error(err);
+        console.error("Erro ao buscar metas:", err);
       }
     }
-    fetchTransactions();
-    fetchGoals();
-  }, []);
 
+    fetchData();
+    fetchGoals();
+  }, [user]);
+
+  // Calcular totais das transações RECENTES (últimas 3)
   const totalReceitas = transacoesRecentes
-    .filter((t) => t.type === "receita")
-    .reduce((acc, t) => acc + t.value, 0);
-  const totalDespesas = transacoesRecentes
-    .filter((t) => t.type === "despesa")
+    .filter((t) => t.type === "BUDGET")
+    .reduce((acc, t) => acc + Math.abs(t.value), 0);
+  const totalDespesasRecentes = transacoesRecentes
+    .filter((t) => t.type === "EXPENSE")
     .reduce((acc, t) => acc + Math.abs(t.value), 0);
 
-  const percentualDinheiroMensal = (saldoAtual / dinheiroMensal) * 100;
+  const percentualDinheiroMensal =
+    dinheiroMensal > 0 ? (totalDespesasMes / dinheiroMensal) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
@@ -120,13 +154,6 @@ export default function Home() {
               Bem-vindo de volta ao seu painel financeiro
             </p>
           </div>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => (window.location.href = "/transacoes")}
-          >
-            + Nova Transação
-          </Button>
         </div>
 
         {/* Card de Dinheiro Mensal */}
@@ -134,17 +161,21 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex-1">
               <p className="text-green-100 text-sm font-medium mb-2">
-                Saldo Atual / Dinheiro Mensal
+                Saldo Disponível Este Mês
               </p>
               <div className="flex items-baseline space-x-3 mb-4">
-                <h3 className="text-4xl sm:text-5xl font-bold">
+                <h3
+                  className={`text-4xl sm:text-5xl font-bold ${
+                    saldoAtual < 0 ? "text-red-200" : ""
+                  }`}
+                >
                   R${" "}
                   {saldoAtual.toLocaleString("pt-BR", {
                     minimumFractionDigits: 2,
                   })}
                 </h3>
                 <span className="text-green-200 text-xl">
-                  / R${" "}
+                  de R${" "}
                   {dinheiroMensal.toLocaleString("pt-BR", {
                     minimumFractionDigits: 2,
                   })}
@@ -161,8 +192,15 @@ export default function Home() {
                 ></div>
               </div>
               <p className="text-green-100 text-sm mt-2">
-                {percentualDinheiroMensal.toFixed(1)}% do orçamento mensal
-                utilizado
+                {percentualDinheiroMensal.toFixed(1)}% do salário mensal gasto
+                {saldoAtual >= 0
+                  ? ` • Restam R$ ${saldoAtual.toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                    })}`
+                  : ` • Excedeu em R$ ${Math.abs(saldoAtual).toLocaleString(
+                      "pt-BR",
+                      { minimumFractionDigits: 2 }
+                    )}`}
               </p>
             </div>
 
@@ -177,10 +215,10 @@ export default function Home() {
                 </p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 flex-1 sm:flex-none">
-                <p className="text-green-100 text-xs mb-1">Despesas</p>
+                <p className="text-green-100 text-xs mb-1">Despesas do Mês</p>
                 <p className="text-white text-xl font-bold">
                   -R${" "}
-                  {totalDespesas.toLocaleString("pt-BR", {
+                  {totalDespesasMes.toLocaleString("pt-BR", {
                     minimumFractionDigits: 2,
                   })}
                 </p>
@@ -355,14 +393,14 @@ export default function Home() {
                 <div className="flex items-center space-x-4">
                   <div
                     className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      transacao.type === "receita"
+                      transacao.type === "BUDGET"
                         ? "bg-green-100"
                         : "bg-red-100"
                     }`}
                   >
                     <svg
                       className={`w-6 h-6 ${
-                        transacao.type === "receita"
+                        transacao.type === "BUDGET"
                           ? "text-green-600"
                           : "text-red-600"
                       }`}
@@ -370,7 +408,7 @@ export default function Home() {
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
-                      {transacao.type === "receita" ? (
+                      {transacao.type === "BUDGET" ? (
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -392,19 +430,18 @@ export default function Home() {
                       {transacao.description}
                     </p>
                     <p className="text-sm text-neutral-500">
-                      {transacao.type} •{" "}
-                      {formatDateTime(transacao.date)}
+                      {transacao.category} • {formatDateTime(transacao.date)}
                     </p>
                   </div>
                 </div>
                 <span
                   className={`text-lg font-bold ${
-                    transacao.type === "receita"
+                    transacao.type === "BUDGET"
                       ? "text-green-600"
                       : "text-red-600"
                   }`}
                 >
-                  {transacao.type === "receita" ? "+" : "-"}R${" "}
+                  {transacao.type === "BUDGET" ? "+" : "-"}R${" "}
                   {Math.abs(transacao.value).toLocaleString("pt-BR", {
                     minimumFractionDigits: 2,
                   })}

@@ -27,10 +27,7 @@ export function formatTime(dateString: string): string {
 }
 
 export function combineDateTime(dateStr: string, timeStr: string): string {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const [hours, minutes] = timeStr.split(":").map(Number);
-
-  const date = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-
-  return date.toISOString();
+  // Combina data (YYYY-MM-DD) e hora (HH:mm) em formato ISO DateTime
+  // Exemplo: "2025-11-05" + "14:30" -> "2025-11-05T14:30:00"
+  return `${dateStr}T${timeStr}:00`;
 }

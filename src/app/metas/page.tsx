@@ -5,7 +5,7 @@ import Card from "~/components/Card";
 import Button from "~/components/Button";
 import Input from "~/components/Input";
 import { GoalBudget, GoalSpent } from "../interfaces/goals";
-import { goalService } from "../services/goalService";
+import { walletService } from "../services/walletService";
 
 export default function Metas() {
   const [abaSelecionada, setAbaSelecionada] = useState<"gastos" | "orcamento">(
@@ -24,9 +24,11 @@ export default function Metas() {
   );
   const [metasGastos, setMetasGastos] = useState<GoalSpent[]>([]);
   const [metasOrcamento, setMetasOrcamento] = useState<GoalBudget[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [formGasto, setFormGasto] = useState({
-    category: "",
+    nome: "",
     limitValue: "",
     spentValue: "",
     mes: new Date().toISOString().slice(0, 7),
@@ -40,43 +42,35 @@ export default function Metas() {
     endDate: "",
   });
 
+  // Carregar metas ao montar o componente e quando trocar de aba
   useEffect(() => {
-    async function fetchGoals() {
-      try {
-        const data = await goalService.getGoalSpent();
-        setMetasGastos(data);
-      } catch (err) {
-        console.error(err);
-      }
-      try {
-        const data = await goalService.getGoalBudget();
-        setMetasOrcamento(data);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
     fetchGoals();
-  }, []);
+  }, [abaSelecionada]);
 
-  const categorys = [
-    "Alimentação",
-    "Transporte",
-    "Moradia",
-    "Saúde",
-    "Educação",
-    "Entretenimento",
-    "Compras",
-    "Contas",
-    "Outros",
-  ];
+  const fetchGoals = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [gastos, orcamentos] = await Promise.all([
+        walletService.getGoalSpent(),
+        walletService.getGoalBudget(),
+      ]);
+      setMetasGastos(gastos);
+      setMetasOrcamento(orcamentos);
+    } catch (err) {
+      console.error("Erro ao carregar metas:", err);
+      setError("Erro ao carregar metas. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Funções Meta de Gasto
   const abrirModalGasto = (meta?: GoalSpent) => {
     if (meta) {
       setGastoEditando(meta);
       setFormGasto({
-        category: meta.category,
+        nome: meta.category,
         limitValue: meta.limitValue.toString(),
         spentValue: meta.spentValue.toString(),
         mes: meta.date as string,
@@ -84,7 +78,7 @@ export default function Metas() {
     } else {
       setGastoEditando(null);
       setFormGasto({
-        category: "",
+        nome: "",
         limitValue: "",
         spentValue: "0",
         mes: new Date().toISOString().slice(0, 7),
@@ -93,35 +87,46 @@ export default function Metas() {
     setModalGastoAberto(true);
   };
 
-  const handleSubmitGasto = (e: React.FormEvent) => {
+  const handleSubmitGasto = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
 
-    if (gastoEditando) {
-      setMetasGastos(
-        metasGastos.map((m) =>
-          m.id === gastoEditando.id
-            ? {
-                ...m,
-                category: formGasto.category,
-                limitValue: parseFloat(formGasto.limitValue),
-                spentValue: parseFloat(formGasto.spentValue),
-                mes: formGasto.mes,
-              }
-            : m
-        )
-      );
-    } else {
-      const novaMeta: GoalSpent = {
-        id: Date.now().toString(),
-        category: formGasto.category,
-        limitValue: parseFloat(formGasto.limitValue),
-        spentValue: parseFloat(formGasto.spentValue),
-        date: formGasto.mes,
-      };
-      setMetasGastos([...metasGastos, novaMeta]);
+    try {
+      if (gastoEditando) {
+        // Atualizar meta existente
+        const metaAtualizada: GoalSpent = {
+          id: gastoEditando.id,
+          category: formGasto.nome,
+          limitValue: parseFloat(formGasto.limitValue),
+          spentValue: parseFloat(formGasto.spentValue),
+          date: formGasto.mes,
+        };
+
+        await walletService.updateGoalSpent(metaAtualizada);
+        // Recarrega as metas para garantir dados atualizados do backend
+        await fetchGoals();
+      } else {
+        // Criar nova meta
+        const novaMeta: Omit<GoalSpent, "id"> = {
+          category: formGasto.nome,
+          limitValue: parseFloat(formGasto.limitValue),
+          spentValue: parseFloat(formGasto.spentValue),
+          date: formGasto.mes,
+        };
+
+        await walletService.createGoalSpent(novaMeta);
+        // Recarrega as metas para garantir dados atualizados do backend
+        await fetchGoals();
+      }
+
+      setModalGastoAberto(false);
+    } catch (err) {
+      console.error("Erro ao salvar meta de gasto:", err);
+      setError("Erro ao salvar meta. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
-
-    setModalGastoAberto(false);
   };
 
   // Funções Meta de Orçamento
@@ -148,37 +153,48 @@ export default function Metas() {
     setModalOrcamentoAberto(true);
   };
 
-  const handleSubmitOrcamento = (e: React.FormEvent) => {
+  const handleSubmitOrcamento = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
 
-    if (orcamentoEditando) {
-      setMetasOrcamento(
-        metasOrcamento.map((m) =>
-          m.id === orcamentoEditando.id
-            ? {
-                ...m,
-                nome: formOrcamento.nome,
-                targetValue: parseFloat(formOrcamento.targetValue),
-                currentValue: parseFloat(formOrcamento.currentValue),
-                startDate: formOrcamento.startDate,
-                endDate: formOrcamento.endDate,
-              }
-            : m
-        )
-      );
-    } else {
-      const novaMeta: GoalBudget = {
-        id: Date.now().toString(),
-        name: formOrcamento.nome,
-        targetValue: parseFloat(formOrcamento.targetValue),
-        currentValue: parseFloat(formOrcamento.currentValue),
-        startDate: formOrcamento.startDate,
-        endDate: formOrcamento.endDate,
-      };
-      setMetasOrcamento([...metasOrcamento, novaMeta]);
+    try {
+      if (orcamentoEditando) {
+        // Atualizar meta existente
+        const metaAtualizada: GoalBudget = {
+          id: orcamentoEditando.id,
+          name: formOrcamento.nome,
+          targetValue: parseFloat(formOrcamento.targetValue),
+          currentValue: parseFloat(formOrcamento.currentValue),
+          startDate: formOrcamento.startDate,
+          endDate: formOrcamento.endDate,
+        };
+
+        await walletService.updateGoalBudget(metaAtualizada);
+        // Recarrega as metas para garantir dados atualizados do backend
+        await fetchGoals();
+      } else {
+        // Criar nova meta
+        const novaMeta: Omit<GoalBudget, "id"> = {
+          name: formOrcamento.nome,
+          targetValue: parseFloat(formOrcamento.targetValue),
+          currentValue: parseFloat(formOrcamento.currentValue),
+          startDate: formOrcamento.startDate,
+          endDate: formOrcamento.endDate,
+        };
+
+        await walletService.createGoalBudget(novaMeta);
+        // Recarrega as metas para garantir dados atualizados do backend
+        await fetchGoals();
+      }
+
+      setModalOrcamentoAberto(false);
+    } catch (err) {
+      console.error("Erro ao salvar meta de orçamento:", err);
+      setError("Erro ao salvar meta. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
-
-    setModalOrcamentoAberto(false);
   };
 
   // Funções de Exclusão
@@ -187,18 +203,25 @@ export default function Metas() {
     setModalExcluirAberto(true);
   };
 
-  const confirmarExclusao = () => {
-    if (itemParaExcluir) {
-      if (itemParaExcluir.tipo === "gasto") {
-        setMetasGastos(metasGastos.filter((m) => m.id !== itemParaExcluir.id));
-      } else {
-        setMetasOrcamento(
-          metasOrcamento.filter((m) => m.id !== itemParaExcluir.id)
-        );
-      }
+  const confirmarExclusao = async () => {
+    if (!itemParaExcluir) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await walletService.deleteWallet(itemParaExcluir.id);
+      // Recarrega as metas para garantir dados atualizados do backend
+      await fetchGoals();
+
+      setModalExcluirAberto(false);
+      setItemParaExcluir(null);
+    } catch (err) {
+      console.error("Erro ao excluir meta:", err);
+      setError("Erro ao excluir meta. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
-    setModalExcluirAberto(false);
-    setItemParaExcluir(null);
   };
 
   const formatarMes = (mes: string) => {
@@ -269,6 +292,46 @@ export default function Metas() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {/* Mensagem de Erro */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
+            <svg
+              className="w-5 h-5 text-red-600 mt-0.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div className="flex-1">
+              <p className="text-red-800 font-medium">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-600 hover:text-red-800"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Tabs */}
         <Card padding="none">
           <div className="grid grid-cols-2 gap-0">
@@ -298,7 +361,14 @@ export default function Metas() {
         {/* Conteúdo - Metas de Gastos */}
         {abaSelecionada === "gastos" && (
           <div className="space-y-4">
-            {metasGastos.length === 0 ? (
+            {loading ? (
+              <Card>
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
+                  <p className="text-neutral-600">Carregando metas...</p>
+                </div>
+              </Card>
+            ) : metasGastos.length === 0 ? (
               <Card>
                 <div className="text-center py-12">
                   <svg
@@ -458,7 +528,14 @@ export default function Metas() {
         {/* Conteúdo - Metas de Orçamento */}
         {abaSelecionada === "orcamento" && (
           <div className="space-y-4">
-            {metasOrcamento.length === 0 ? (
+            {loading ? (
+              <Card>
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
+                  <p className="text-neutral-600">Carregando metas...</p>
+                </div>
+              </Card>
+            ) : metasOrcamento.length === 0 ? (
               <Card>
                 <div className="text-center py-12">
                   <svg
@@ -636,26 +713,16 @@ export default function Metas() {
               </div>
 
               <form onSubmit={handleSubmitGasto} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">
-                    category <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formGasto.category}
-                    onChange={(e) =>
-                      setFormGasto({ ...formGasto, category: e.target.value })
-                    }
-                    required
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                  >
-                    <option value="">Selecione uma category</option>
-                    {categorys.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Input
+                  label="Nome da Meta"
+                  name="nome"
+                  value={formGasto.nome}
+                  onChange={(e) =>
+                    setFormGasto({ ...formGasto, nome: e.target.value })
+                  }
+                  placeholder="Ex: Alimentação, Transporte, Moradia..."
+                  required
+                />
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -723,11 +790,21 @@ export default function Metas() {
                     onClick={() => setModalGastoAberto(false)}
                     variant="secondary"
                     fullWidth
+                    disabled={loading}
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" variant="primary" fullWidth>
-                    {gastoEditando ? "Salvar" : "Criar Meta"}
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    fullWidth
+                    disabled={loading}
+                  >
+                    {loading
+                      ? "Salvando..."
+                      : gastoEditando
+                      ? "Salvar"
+                      : "Criar Meta"}
                   </Button>
                 </div>
               </form>
@@ -864,11 +941,21 @@ export default function Metas() {
                     onClick={() => setModalOrcamentoAberto(false)}
                     variant="secondary"
                     fullWidth
+                    disabled={loading}
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" variant="primary" fullWidth>
-                    {orcamentoEditando ? "Salvar" : "Criar Meta"}
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    fullWidth
+                    disabled={loading}
+                  >
+                    {loading
+                      ? "Salvando..."
+                      : orcamentoEditando
+                      ? "Salvar"
+                      : "Criar Meta"}
                   </Button>
                 </div>
               </form>
@@ -911,6 +998,7 @@ export default function Metas() {
                   onClick={() => setModalExcluirAberto(false)}
                   variant="secondary"
                   fullWidth
+                  disabled={loading}
                 >
                   Cancelar
                 </Button>
@@ -919,8 +1007,9 @@ export default function Metas() {
                   onClick={confirmarExclusao}
                   variant="danger"
                   fullWidth
+                  disabled={loading}
                 >
-                  Excluir
+                  {loading ? "Excluindo..." : "Excluir"}
                 </Button>
               </div>
             </div>

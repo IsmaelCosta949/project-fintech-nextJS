@@ -4,38 +4,65 @@ import { useEffect, useState } from "react";
 import Card from "~/components/Card";
 import Button from "~/components/Button";
 import Input from "~/components/Input";
-import { useUser } from "../context/UserContext";
+import { getUserProfile, updateUser } from "../services/userService";
 
 export default function Usuario() {
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [modalSairAberto, setModalSairAberto] = useState(false);
-  const { user, setUser } = useUser();
+  const [loading, setLoading] = useState(true);
 
   const [dadosUsuario, setDadosUsuario] = useState({
-    nome: user?.nome,
-    email: user?.email,
-    cpf: user?.cpf,
-    telefone: user?.telefone,
-    dinheiroMensal: user?.dinheiroMensal,
-    dataCadastro: user?.dataCadastro,
+    nome: "",
+    email: "",
+    cpf: "",
+    dinheiroMensal: 0,
+    dataCadastro: "",
   });
+
   useEffect(() => {
-    setDadosUsuario({
-      nome: user?.nome,
-      email: user?.email,
-      cpf: user?.cpf,
-      telefone: user?.telefone,
-      dinheiroMensal: user?.dinheiroMensal,
-      dataCadastro: user?.dataCadastro,
-    });
-  }, [user]);
+    const carregarDadosUsuario = async () => {
+      const accountId = localStorage.getItem("accountId");
+      if (!accountId) {
+        window.location.href = "/login";
+        return;
+      }
+
+      try {
+        const userData = await getUserProfile(Number(accountId));
+        setDadosUsuario({
+          nome: userData.name || "",
+          email: userData.email || "",
+          cpf: userData.cpf || "",
+          dinheiroMensal: userData.monthlyIncome || 0,
+          dataCadastro: userData.createdAt || "",
+        });
+
+        // Atualiza o salário mensal no localStorage se veio do backend
+        if (
+          userData.monthlyIncome !== undefined &&
+          userData.monthlyIncome !== null
+        ) {
+          localStorage.setItem(
+            "salarioMensal",
+            userData.monthlyIncome.toString()
+          );
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados do usuário:", error);
+        alert("Erro ao carregar dados do usuário");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    carregarDadosUsuario();
+  }, []);
 
   const [formData, setFormData] = useState({
-    nome: dadosUsuario.nome,
-    email: dadosUsuario.email,
-    cpf: dadosUsuario.cpf,
-    telefone: dadosUsuario.telefone,
-    dinheiroMensal: dadosUsuario.dinheiroMensal?.toString(),
+    nome: "",
+    email: "",
+    cpf: "",
+    dinheiroMensal: "",
     senhaAtual: "",
     novaSenha: "",
     confirmarNovaSenha: "",
@@ -46,7 +73,6 @@ export default function Usuario() {
       nome: dadosUsuario.nome,
       email: dadosUsuario.email,
       cpf: dadosUsuario.cpf,
-      telefone: dadosUsuario.telefone,
       dinheiroMensal: dadosUsuario.dinheiroMensal?.toString(),
       senhaAtual: "",
       novaSenha: "",
@@ -55,45 +81,91 @@ export default function Usuario() {
     setModalEditarAberto(true);
   };
 
-  const handleSubmitEdicao = (e: React.FormEvent) => {
+  const handleSubmitEdicao = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validação de senha (se estiver mudando)
+    // Validação: senha atual é obrigatória para qualquer alteração
+    if (!formData.senhaAtual) {
+      alert("Digite sua senha atual para confirmar as alterações!");
+      return;
+    }
+
+    // Validação de nova senha (se estiver mudando)
     if (formData.novaSenha) {
       if (formData.novaSenha !== formData.confirmarNovaSenha) {
         alert("As senhas não coincidem!");
         return;
       }
-      if (!formData.senhaAtual) {
-        alert("Digite sua senha atual para alterar a senha!");
+      if (formData.novaSenha.length < 6) {
+        alert("A nova senha deve ter pelo menos 6 caracteres!");
         return;
       }
     }
 
-    // Atualizar dados
-    setDadosUsuario({
-      ...dadosUsuario,
-      nome: formData.nome,
-      email: formData.email,
-      cpf: formData.cpf,
-      telefone: formData.telefone,
-      dinheiroMensal: formData.dinheiroMensal
-        ? parseFloat(formData.dinheiroMensal)
-        : 0,
-    });
+    const accountId = localStorage.getItem("accountId");
+    if (!accountId) {
+      alert("Erro: usuário não identificado");
+      return;
+    }
 
-    setModalEditarAberto(false);
-    alert("Dados atualizados com sucesso!");
+    try {
+      interface UpdateData {
+        name: string;
+        cpf: string;
+        monthlyIncome: number;
+        email: string;
+        password: string;
+      }
+
+      const updateData: UpdateData = {
+        name: formData.nome,
+        cpf: formData.cpf,
+        monthlyIncome: parseFloat(formData.dinheiroMensal || "0"),
+        email: formData.email,
+        password: formData.novaSenha || formData.senhaAtual, // Usa nova senha se fornecida, senão mantém a atual
+      };
+
+      const updatedData = await updateUser(Number(accountId), updateData);
+
+      setDadosUsuario({
+        nome: updatedData.name || "",
+        email: updatedData.email || "",
+        cpf: updatedData.cpf || "",
+        dinheiroMensal: updatedData.monthlyIncome || 0,
+        dataCadastro: updatedData.createdAt || dadosUsuario.dataCadastro,
+      });
+
+      setModalEditarAberto(false);
+      alert("Dados atualizados com sucesso!");
+    } catch (error) {
+      console.error("Erro ao atualizar dados:", error);
+      alert("Erro ao atualizar dados. Verifique os campos e tente novamente.");
+    }
   };
 
   const handleSair = () => {
+    // Limpar localStorage
+    localStorage.removeItem("accountId");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("userEmail");
+    localStorage.removeItem("salarioMensal");
+
     // Redirecionar para login
     window.location.href = "/login";
   };
 
   const formatarData = (data: string) => {
+    if (!data) return "-";
     return new Date(data).toLocaleDateString("pt-BR");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-white flex items-center justify-center">
+        <div className="text-neutral-600">Carregando...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
@@ -237,13 +309,6 @@ export default function Usuario() {
               <p className="text-sm text-neutral-600 mb-1">CPF</p>
               <p className="font-semibold text-neutral-900">
                 {dadosUsuario.cpf || "Cpf não informado"}
-              </p>
-            </div>
-
-            <div className="p-4 bg-neutral-50 rounded-lg">
-              <p className="text-sm text-neutral-600 mb-1">Telefone</p>
-              <p className="font-semibold text-neutral-900">
-                {dadosUsuario.telefone || "Telefone não informado"}
               </p>
             </div>
           </div>
@@ -512,16 +577,6 @@ export default function Usuario() {
                     }
                     placeholder="000.000.000-00"
                   />
-
-                  <Input
-                    label="Telefone"
-                    name="telefone"
-                    value={formData.telefone ? formData.telefone : ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, telefone: e.target.value })
-                    }
-                    placeholder="(00) 00000-0000"
-                  />
                 </div>
 
                 <div>
@@ -549,13 +604,17 @@ export default function Usuario() {
                 </div>
 
                 <div className="border-t border-neutral-200 pt-4 mt-4">
-                  <h3 className="font-semibold text-neutral-900 mb-4">
-                    Alterar Senha (Opcional)
+                  <h3 className="font-semibold text-neutral-900 mb-2">
+                    Segurança
                   </h3>
+                  <p className="text-sm text-neutral-600 mb-4">
+                    Digite sua senha atual para confirmar as alterações. Se
+                    desejar trocar a senha, preencha os campos de nova senha.
+                  </p>
 
                   <div className="space-y-4">
                     <Input
-                      label="Senha Atual"
+                      label="Senha Atual *"
                       type="password"
                       name="senhaAtual"
                       value={formData.senhaAtual}
@@ -563,6 +622,7 @@ export default function Usuario() {
                         setFormData({ ...formData, senhaAtual: e.target.value })
                       }
                       placeholder="••••••••"
+                      required
                     />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

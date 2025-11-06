@@ -6,22 +6,30 @@ import Button from "~/components/Button";
 import Input from "~/components/Input";
 import { Transactions, TransactionsPost } from "../interfaces/transactions";
 import { transactionService } from "../services/transactionService";
-import { combineDateTime, formatDate, formatTime } from "~/utils/formatDate";
-import { Wallets } from "../interfaces/wallets";
+import { combineDateTime } from "~/utils/formatDate";
 import { walletService } from "../services/walletService";
+import { GoalBudget, GoalSpent } from "../interfaces/goals";
 
 export default function Transacoes() {
   const [transacoes, setTransacoes] = useState<Transactions[]>([]);
-  useEffect(() => {
-    async function fetchTransactions() {
-      try {
-        const data = await transactionService.getTransactions();
-        setTransacoes(data);
-      } catch (err) {
-        console.error(err);
-      }
-    }
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const fetchTransactions = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await transactionService.getTransactions();
+      setTransacoes(data);
+    } catch (err) {
+      console.error(err);
+      setError("Erro ao carregar transações");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTransactions();
   }, []);
 
@@ -32,47 +40,46 @@ export default function Transacoes() {
   >(null);
   const [transacaoEditando, setTransacaoEditando] =
     useState<Transactions | null>(null);
-  const [filtro, setFiltro] = useState<"todos" | "receita" | "despesa">(
-    "todos"
-  );
+  const [filtro, setFiltro] = useState<"todos" | "BUDGET" | "EXPENSE">("todos");
   const [ordenacao, setOrdenacao] = useState<"data" | "valor">("data");
 
-  const [categorias, setCategorias] = useState<{
-    receita: string[];
-    despesa: string[];
-  }>({ receita: [], despesa: [] });
+  const [wallets, setWallets] = useState<{
+    budget: Array<{ walletId: number; name: string }>;
+    expense: Array<{ walletId: number; name: string }>;
+  }>({ budget: [], expense: [] });
 
   useEffect(() => {
-    async function fetchCategorias() {
+    async function fetchWallets() {
       try {
-        const wallets = await walletService.getWallets();
-        const novasCategorias = {
-          receita: [] as string[],
-          despesa: [] as string[],
-        };
+        const [budgetWallets, expenseWallets] = await Promise.all([
+          walletService.getGoalBudget(),
+          walletService.getGoalSpent(),
+        ]);
 
-        wallets.forEach((wallet) => {
-          if (wallet.type === "receita") {
-            novasCategorias.receita.push(wallet.name);
-          } else if (wallet.type === "despesa") {
-            novasCategorias.despesa.push(wallet.name);
-          }
+        setWallets({
+          budget: budgetWallets.map((w) => ({
+            walletId: parseInt(w.id),
+            name: w.name,
+          })),
+          expense: expenseWallets.map((w) => ({
+            walletId: parseInt(w.id),
+            name: w.category,
+          })),
         });
-
-        setCategorias(novasCategorias);
       } catch (err) {
-        console.error("Erro ao buscar categorias:", err);
+        console.error("Erro ao buscar wallets:", err);
       }
     }
 
-    fetchCategorias();
+    fetchWallets();
   }, []);
 
   const [formData, setFormData] = useState<{
     transactionId: number;
     descricao: string;
     valor: string;
-    tipo: keyof typeof categorias | "";
+    tipo: "BUDGET" | "EXPENSE" | "";
+    walletId: number;
     categoria: string;
     data: string;
     hora: string;
@@ -81,6 +88,7 @@ export default function Transacoes() {
     descricao: "",
     valor: "",
     tipo: "",
+    walletId: 0,
     categoria: "",
     data: new Date().toISOString().split("T")[0],
     hora: new Date().toTimeString().slice(0, 5),
@@ -94,7 +102,8 @@ export default function Transacoes() {
         transactionId: transacao.id,
         descricao: transacao.description,
         valor: Math.abs(transacao.value).toString(),
-        tipo: transacao.type as "receita" | "despesa" | "",
+        tipo: transacao.type as "BUDGET" | "EXPENSE",
+        walletId: transacao.walletId || 0,
         categoria: transacao.category,
         data: transacao.date,
         hora: transacao.hour,
@@ -105,7 +114,8 @@ export default function Transacoes() {
         transactionId: 0,
         descricao: "",
         valor: "",
-        tipo: "despesa",
+        tipo: "EXPENSE",
+        walletId: 0,
         categoria: "",
         data: new Date().toISOString().split("T")[0],
         hora: new Date().toTimeString().slice(0, 5),
@@ -121,44 +131,46 @@ export default function Transacoes() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
 
-    const valorNumerico =
-      formData.tipo === "receita"
-        ? parseFloat(formData.valor)
-        : -parseFloat(formData.valor);
+    try {
+      const valorNumerico = parseFloat(formData.valor);
 
-    if (transacaoEditando) {
-      // Editar
-      const wallets = await walletService.getWallets();
-      const walletId = wallets.find((w) => w.name === formData.categoria);
-      const editTransaction: TransactionsPost = {
-        walletId: walletId?.walletId || 0,
-        description: formData.descricao,
-        type: formData.tipo,
-        value: valorNumerico,
-        transactionAt: combineDateTime(formData.data, formData.hora),
-      };
-      console.log(editTransaction, formData.transactionId);
+      if (transacaoEditando) {
+        // Editar
+        const editTransaction: TransactionsPost = {
+          walletId: formData.walletId,
+          description: formData.descricao,
+          type: formData.tipo as string,
+          value: valorNumerico,
+          transactionAt: combineDateTime(formData.data, formData.hora),
+        };
 
-      const response = await transactionService.editTransaction(
-        editTransaction,
-        formData.transactionId
-      );
-    } else {
-      // Adicionar
-      const wallets = await walletService.getWallets();
-      const walletId = wallets.find((w) => w.name === formData.categoria);
-      const newTransaction: TransactionsPost = {
-        walletId: walletId?.walletId || 0,
-        description: formData.descricao,
-        type: formData.tipo,
-        value: valorNumerico,
-        transactionAt: combineDateTime(formData.data, formData.hora),
-      };
-      const response = await transactionService.postTransaction(newTransaction);
+        await transactionService.editTransaction(
+          editTransaction,
+          formData.transactionId
+        );
+      } else {
+        // Adicionar
+        const newTransaction: TransactionsPost = {
+          walletId: formData.walletId,
+          description: formData.descricao,
+          type: formData.tipo as string,
+          value: valorNumerico,
+          transactionAt: combineDateTime(formData.data, formData.hora),
+        };
+        await transactionService.postTransaction(newTransaction);
+      }
+
+      await fetchTransactions();
+      fecharModal();
+    } catch (err) {
+      console.error("Erro ao salvar transação:", err);
+      setError("Erro ao salvar transação. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
-
-    // fecharModal();
   };
 
   const abrirModalExcluir = (id: number) => {
@@ -168,9 +180,18 @@ export default function Transacoes() {
 
   const confirmarExclusao = async () => {
     if (transacaoParaExcluir) {
-      const response = await transactionService.deleteTransaction(
-        transacaoParaExcluir
-      );
+      setLoading(true);
+      setError(null);
+
+      try {
+        await transactionService.deleteTransaction(transacaoParaExcluir);
+        await fetchTransactions();
+      } catch (err) {
+        console.error("Erro ao excluir transação:", err);
+        setError("Erro ao excluir transação. Tente novamente.");
+      } finally {
+        setLoading(false);
+      }
     }
     setModalExcluir(false);
     setTransacaoParaExcluir(null);
@@ -194,10 +215,10 @@ export default function Transacoes() {
     });
 
   const totalReceitas = transacoes
-    .filter((t) => t.type === "receita")
-    .reduce((acc, t) => acc + t.value, 0);
+    .filter((t) => t.type === "BUDGET")
+    .reduce((acc, t) => acc + Math.abs(t.value), 0);
   const totalDespesas = transacoes
-    .filter((t) => t.type === "despesa")
+    .filter((t) => t.type === "EXPENSE")
     .reduce((acc, t) => acc + Math.abs(t.value), 0);
   const saldo = totalReceitas - totalDespesas;
 
@@ -282,19 +303,19 @@ export default function Transacoes() {
                   Todos
                 </button>
                 <button
-                  onClick={() => setFiltro("receita")}
+                  onClick={() => setFiltro("BUDGET")}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
-                    filtro === "receita"
+                    filtro === "BUDGET"
                       ? "bg-green-600 text-white"
                       : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
                   }`}
                 >
-                  Receitas
+                  Orçamentos
                 </button>
                 <button
-                  onClick={() => setFiltro("despesa")}
+                  onClick={() => setFiltro("EXPENSE")}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
-                    filtro === "despesa"
+                    filtro === "EXPENSE"
                       ? "bg-green-600 text-white"
                       : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
                   }`}
@@ -362,14 +383,14 @@ export default function Transacoes() {
                   <div className="flex items-center space-x-4 flex-1">
                     <div
                       className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        transacao.type === "receita"
+                        transacao.type === "BUDGET"
                           ? "bg-green-100"
                           : "bg-red-100"
                       }`}
                     >
                       <svg
                         className={`w-6 h-6 ${
-                          transacao.type === "receita"
+                          transacao.type === "BUDGET"
                             ? "text-green-600"
                             : "text-red-600"
                         }`}
@@ -377,7 +398,7 @@ export default function Transacoes() {
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
-                        {transacao.type === "receita" ? (
+                        {transacao.type === "BUDGET" ? (
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -400,8 +421,8 @@ export default function Transacoes() {
                         {transacao.description}
                       </p>
                       <p className="text-sm text-neutral-500">
-                        {transacao.category} • {formatarData(transacao.date)}{" "}
-                        {formatTime(transacao.date)}
+                        {transacao.category} • {formatarData(transacao.date)} às{" "}
+                        {transacao.hour}
                       </p>
                     </div>
                   </div>
@@ -409,12 +430,12 @@ export default function Transacoes() {
                   <div className="flex items-center space-x-4">
                     <span
                       className={`text-lg font-bold ${
-                        transacao.type === "receita"
+                        transacao.type === "BUDGET"
                           ? "text-green-600"
                           : "text-red-600"
                       }`}
                     >
-                      {transacao.type === "receita" ? "+" : "-"}R${" "}
+                      {transacao.type === "BUDGET" ? "+" : "-"}R${" "}
                       {Math.abs(transacao.value).toLocaleString("pt-BR", {
                         minimumFractionDigits: 2,
                       })}
@@ -509,35 +530,39 @@ export default function Transacoes() {
                       onClick={() =>
                         setFormData({
                           ...formData,
-                          tipo: "receita",
+                          tipo: "BUDGET",
+                          walletId: 0,
                           categoria: "",
                         })
                       }
                       className={`p-4 rounded-lg border-2 transition-all ${
-                        formData.tipo === "receita"
+                        formData.tipo === "BUDGET"
                           ? "border-green-600 bg-green-50"
                           : "border-neutral-200 hover:border-neutral-300"
                       }`}
                     >
-                      <div className="text-3xl mb-2">📈</div>
-                      <p className="font-semibold text-neutral-900">Receita</p>
+                      <div className="text-3xl mb-2">�</div>
+                      <p className="font-semibold text-neutral-900">
+                        Orçamento
+                      </p>
                     </button>
                     <button
                       type="button"
                       onClick={() =>
                         setFormData({
                           ...formData,
-                          tipo: "despesa",
+                          tipo: "EXPENSE",
+                          walletId: 0,
                           categoria: "",
                         })
                       }
                       className={`p-4 rounded-lg border-2 transition-all ${
-                        formData.tipo === "despesa"
+                        formData.tipo === "EXPENSE"
                           ? "border-red-600 bg-red-50"
                           : "border-neutral-200 hover:border-neutral-300"
                       }`}
                     >
-                      <div className="text-3xl mb-2">📉</div>
+                      <div className="text-3xl mb-2">�</div>
                       <p className="font-semibold text-neutral-900">Despesa</p>
                     </button>
                   </div>
@@ -578,22 +603,43 @@ export default function Transacoes() {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">
-                    Categoria <span className="text-red-500">*</span>
+                    Carteira <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formData.categoria}
-                    onChange={(e) =>
-                      setFormData({ ...formData, categoria: e.target.value })
-                    }
+                    value={formData.walletId}
+                    onChange={(e) => {
+                      const selectedWalletId = parseInt(e.target.value);
+                      const selectedWallet =
+                        formData.tipo === "BUDGET"
+                          ? wallets.budget.find(
+                              (w) => w.walletId === selectedWalletId
+                            )
+                          : wallets.expense.find(
+                              (w) => w.walletId === selectedWalletId
+                            );
+
+                      setFormData({
+                        ...formData,
+                        walletId: selectedWalletId,
+                        categoria: selectedWallet?.name || "",
+                      });
+                    }}
                     required
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                   >
-                    <option value="">Selecione uma categoria</option>
+                    <option value="0">Selecione uma carteira</option>
 
-                    {formData.tipo &&
-                      categorias[formData.tipo]?.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
+                    {formData.tipo === "BUDGET" &&
+                      wallets.budget.map((wallet) => (
+                        <option key={wallet.walletId} value={wallet.walletId}>
+                          {wallet.name}
+                        </option>
+                      ))}
+
+                    {formData.tipo === "EXPENSE" &&
+                      wallets.expense.map((wallet) => (
+                        <option key={wallet.walletId} value={wallet.walletId}>
+                          {wallet.name}
                         </option>
                       ))}
                   </select>
