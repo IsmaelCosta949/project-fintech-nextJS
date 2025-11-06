@@ -28,18 +28,16 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const response = await userService.getUser(formData.nome, formData.senha);
-    console.log(response);
 
-    // setUser(response);
-
-    // if (isLogin) {
-    //   // Redirecionar para /home após login
-    //   window.location.href = "/home";
-    // } else {
-    //   // Redirecionar para /home após cadastro
-    //   window.location.href = "/home";
-    // }
+    if (isLogin) {
+      const userLogin = await userService.login(formData.email, formData.senha);
+      const userData = await userService.getUser(userLogin.accountId);
+      setUser(userData);
+      window.location.href = "/home";
+    } else {
+      // Redirecionar para /home após cadastro
+      window.location.href = "/home";
+    }
   };
 
   const formatCurrency = (value: string) => {

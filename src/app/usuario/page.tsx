@@ -12,21 +12,19 @@ export default function Usuario() {
   const { user, setUser } = useUser();
 
   const [dadosUsuario, setDadosUsuario] = useState({
-    nome: user?.nome,
+    nome: user?.name,
     email: user?.email,
     cpf: user?.cpf,
-    telefone: user?.telefone,
-    dinheiroMensal: user?.dinheiroMensal,
-    dataCadastro: user?.dataCadastro,
+    dinheiroMensal: user?.monthlyIncome,
+    dataCadastro: user?.createdAt,
   });
   useEffect(() => {
     setDadosUsuario({
-      nome: user?.nome,
+      nome: user?.name,
       email: user?.email,
       cpf: user?.cpf,
-      telefone: user?.telefone,
-      dinheiroMensal: user?.dinheiroMensal,
-      dataCadastro: user?.dataCadastro,
+      dinheiroMensal: user?.monthlyIncome,
+      dataCadastro: user?.createdAt,
     });
   }, [user]);
 
@@ -34,7 +32,6 @@ export default function Usuario() {
     nome: dadosUsuario.nome,
     email: dadosUsuario.email,
     cpf: dadosUsuario.cpf,
-    telefone: dadosUsuario.telefone,
     dinheiroMensal: dadosUsuario.dinheiroMensal?.toString(),
     senhaAtual: "",
     novaSenha: "",
@@ -46,7 +43,6 @@ export default function Usuario() {
       nome: dadosUsuario.nome,
       email: dadosUsuario.email,
       cpf: dadosUsuario.cpf,
-      telefone: dadosUsuario.telefone,
       dinheiroMensal: dadosUsuario.dinheiroMensal?.toString(),
       senhaAtual: "",
       novaSenha: "",
@@ -76,7 +72,6 @@ export default function Usuario() {
       nome: formData.nome,
       email: formData.email,
       cpf: formData.cpf,
-      telefone: formData.telefone,
       dinheiroMensal: formData.dinheiroMensal
         ? parseFloat(formData.dinheiroMensal)
         : 0,
@@ -237,13 +232,6 @@ export default function Usuario() {
               <p className="text-sm text-neutral-600 mb-1">CPF</p>
               <p className="font-semibold text-neutral-900">
                 {dadosUsuario.cpf || "Cpf não informado"}
-              </p>
-            </div>
-
-            <div className="p-4 bg-neutral-50 rounded-lg">
-              <p className="text-sm text-neutral-600 mb-1">Telefone</p>
-              <p className="font-semibold text-neutral-900">
-                {dadosUsuario.telefone || "Telefone não informado"}
               </p>
             </div>
           </div>
@@ -511,16 +499,6 @@ export default function Usuario() {
                       setFormData({ ...formData, cpf: e.target.value })
                     }
                     placeholder="000.000.000-00"
-                  />
-
-                  <Input
-                    label="Telefone"
-                    name="telefone"
-                    value={formData.telefone ? formData.telefone : ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, telefone: e.target.value })
-                    }
-                    placeholder="(00) 00000-0000"
                   />
                 </div>
 

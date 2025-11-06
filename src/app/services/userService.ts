@@ -1,9 +1,9 @@
-import { Users } from "../interfaces/users";
+import { Users, UsersLogin } from "../interfaces/users";
 
-const API_BASE_URL = "https://wallets-api-fintech.onrender.com/api";
+const API_BASE_URL = "http://localhost:8080/api";
 
 export const userService = {
-  async getUser(email: string, senha: string): Promise<Users> {
+  async login(email: string, senha: string): Promise<UsersLogin> {
     const res = await fetch(`${API_BASE_URL}/accounts/auth/login`, {
       method: "POST",
       headers: {
@@ -16,18 +16,22 @@ export const userService = {
     });
 
     if (!res.ok) {
-      throw new Error(`Failed to fetch recent transactions: ${res.statusText}`);
+      throw new Error(`Failed to login: ${res.statusText}`);
     }
 
     const data = await res.json();
 
-    console.log(data);
+    return data;
+  },
+  async getUser(userId: number): Promise<Users> {
+    const res = await fetch(`${API_BASE_URL}/accounts/${userId}`);
 
-    return {
-      accountId: 0,
-      name: "joao",
-      status: "ativo",
-      email: "joao.silva@gmail.com",
-    };
+    if (!res.ok) {
+      throw new Error(`Failed to get user: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+
+    return data;
   },
 };
